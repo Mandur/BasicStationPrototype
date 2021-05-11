@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using BasicStationPrototype.Models;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -93,11 +94,24 @@ namespace WebSocketsTutorial.Controllers
             while (!result.CloseStatus.HasValue)
             {
                 var input = Encoding.UTF8.GetString(buffer).Replace("\0", "");
+
                 _logger.Log(LogLevel.Information, $"Received message: {input}");
 
-                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                 _logger.Log(LogLevel.Information, "Message received from Client");
-                buffer = null;
+                var formaterInput = JsonSerializer.Deserialize<BasicStationPrototype.Models.Version>(input);
+                if (formaterInput?.msgtype == "version")
+                {
+                    var serializeOptions = new JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                        WriteIndented = true
+                    }; 
+                    var message = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new RouterConfigReply { sx1301_conf = new List<Sx1301>() { new Sx1301() } }));
+                    await webSocket.SendAsync(new ArraySegment<byte>(message, 0, message.Length), result.MessageType, result.EndOfMessage, CancellationToken.None);
+                    _logger.Log(LogLevel.Information, "Message sent to Client");
+                }
+
+                result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
 
             }
             await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
